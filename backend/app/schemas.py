@@ -431,6 +431,41 @@ class RetentionResult(BaseModel):
     cohort_sizes: dict[str, int] = Field(default_factory=dict)
     retention_rates: dict[str, list[float]] = Field(default_factory=dict)
     result_table: str = ""
+    # 曲线版本与输入指纹：让每次计算的结果可被核验、可被LTV校准登记引用
+    curve_version: str = ""
+    curve_fingerprint: str = ""
+    cohort_batches: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RetentionAdoption(BaseModel):
+    """留存校准采用记录：登记已被LTV校准采用的曲线版本及入组批次。"""
+
+    adoption_id: str
+    retention_config_id: str
+    curve_version: str
+    curve_fingerprint: str
+    cohort_batches: list[dict[str, Any]] = Field(default_factory=list)
+    adopted_by_model: str = ""
+    adopted_at: str = ""
+    source_detail_id: str = ""
+    note: str = ""
+
+
+class RetentionCorrection(BaseModel):
+    """留存更正单：影响基准群的迟到更正，未完成前阻断其引用的曲线输入继续生效。"""
+
+    correction_id: str
+    retention_config_id: str
+    affected_curve_version: str
+    affected_curve_fingerprint: str
+    affected_batches: list[dict[str, Any]] = Field(default_factory=list)
+    reason: str = ""
+    status: str = "更正中"
+    created_at: str = ""
+    completed_at: str = ""
+    replacement_curve_version: str = ""
+    replacement_curve_fingerprint: str = ""
+    rolled_back_at: str = ""
 
 
 class LtvResult(BaseModel):
@@ -442,6 +477,54 @@ class LtvResult(BaseModel):
     predicted_values: list[dict[str, Any]] = Field(default_factory=list)
     avg_ltv: float = 0.0
     calibration_error: float = 0.0
+
+
+class LtvForecastDetail(BaseModel):
+    """LTV预测明细（按版本发布）：内嵌发布当时的曲线版本、采用记录与逐用户估值。"""
+
+    detail_id: str
+    model_id: str
+    model_version: str
+    segment_id: str
+    cycle: str
+    status: str = "待发布"
+    predict_window: int = 0
+    value_metric: str = ""
+    # 发布当时的留存曲线输入（整份固化，保证回滚/复算不依赖后续被更正的数据）
+    retention_config_id: str = ""
+    curve_version: str = ""
+    curve_fingerprint: str = ""
+    adoption_id: str = ""
+    cohort_batches: list[dict[str, Any]] = Field(default_factory=list)
+    retention_snapshot: dict[str, Any] = Field(default_factory=dict)
+    predicted_values: list[dict[str, Any]] = Field(default_factory=list)
+    avg_ltv: float = 0.0
+    adjusted_avg_ltv: float = 0.0
+    avg_retention_rate: float = 0.0
+    detail_fingerprint: str = ""
+    created_at: str = ""
+    published_at: str = ""
+
+
+class LtvRelease(BaseModel):
+    """LTV校准发布单：原子绑定预测明细与留存曲线两份输入，支持回滚到整份可核验数据。"""
+
+    release_id: str
+    model_id: str
+    cycle: str
+    status: str = "已发布"
+    detail_id: str
+    detail_fingerprint: str = ""
+    retention_config_id: str = ""
+    curve_version: str = ""
+    curve_fingerprint: str = ""
+    adoption_id: str = ""
+    effective_from: str = ""
+    effective_to: str = ""
+    replaced_release_id: str = ""
+    rolled_back_at: str = ""
+    rollback_reason: str = ""
+    created_at: str = ""
 
 
 class SessionResult(BaseModel):

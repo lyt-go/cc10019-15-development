@@ -54,9 +54,9 @@ npm run dev
 | 标签计算 | `tag_compute` | 计算任务 | 任务编号、关联标签、计算范围 |
 | 人群圈选 | `crowd_select` | 圈选条件 | 条件编号、条件名称、标签组合 |
 | 行为路径 | `behavior_path` | 路径模型 | 模型编号、起始事件、目标事件 |
-| 留存计算 | `retention_calc` | 留存配置 | 配置编号、初始行为、回访行为 |
+| 留存计算 | `retention_calc` | 留存配置/曲线版本/迟到更正 | 配置编号、初始行为、回访行为、曲线版本、指纹、入组批次 |
 | 用户分群 | `user_segment` | 分群定义 | 分群编号、分群名称、基准行为 |
-| 生命周期价值 | `lifetime_value` | LTV模型 | 模型编号、用户分群、价值指标 |
+| 生命周期价值 | `lifetime_value` | LTV模型/预测明细/校准发布 | 模型编号、用户分群、预测明细、发布单、关联曲线、生效时间 |
 | 漏斗分析 | `funnel_analyze` | 漏斗定义 | 漏斗编号、漏斗名称、步骤序列 |
 | 事件清洗 | `event_cleanse` | 清洗规则 | 规则编号、事件名称、校验字段 |
 | 会话切割 | `session_split` | 切割策略 | 策略编号、策略名称、超时阈值 |
@@ -74,6 +74,21 @@ npm run dev
   `backend/app/routers/<模块>.py`，业务规则在 `backend/app/services/<模块>.py`。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+### LTV 校准发布与留存更正闭环
+
+生命周期价值补齐了校准发布状态，周期更迭时可追溯正在生效的结果，数据链路由四张新表承载：
+
+- `retention_curve`：留存计算结果固化为带指纹（`curve_fingerprint`）的曲线版本，并登记入组批次（`cohort_batches`）。
+- `retention_adoption`：LTV 校准采用曲线时登记采用记录，固化被采用的曲线版本、指纹与入组批次。
+- `retention_correction`：影响基准群的迟到更正单。更正未完成前，对应曲线输入不能被新预测明细采用或发布绑定（两项输入不会分开生效）；完成会重算产生替代曲线版本，回滚则恢复更正前整份可核验数据。
+- `ltv_forecast_detail` / `ltv_release`：按版本发布的预测明细内嵌发布当时的曲线快照、采用记录与逐用户估值（带明细指纹）；发布单原子绑定「预测明细 + 留存曲线」两份输入，记录生效起止、替换关系，支持回滚与沿留存采用记录复算（`recompute` 会核对指纹）。
+
+关键接口：
+
+- `GET/POST /api/retention-calc/curves|adoptions|corrections`，`POST /api/retention-calc/corrections/{id}/complete|rollback`
+- `POST /api/lifetime-value/{model_id}/forecast-details`，`POST /api/lifetime-value/forecast-details/{id}/publish`
+- `POST /api/lifetime-value/releases/{id}/rollback`，`GET /api/lifetime-value/forecast-details/{id}/recompute`
 
 领域：数据工程
 子方向：数据分析与数据应用
